@@ -17,51 +17,69 @@ cursor = konekcija.cursor(dictionary=True)
 #Početna stranica
 @app.route("/")
 def index():
-    cursor.execute("SELECT * FROM hotel")
-    hotel = cursor.fetchall()
-    return render_template("index.html", hotel=hotel)
+    cursor.execute("""SELECT hotel.hotelID, hotel.naziv, hotel.adresa, hotel.zvezdice, hotel.ljubimci, hotel.vrsta_smestaja, hotel.obrok,
+                        grad.naziv_grada AS grad
+                    FROM hotel
+                    JOIN grad ON hotel.gradID = grad.gradID""")
+    hoteli = cursor.fetchall()
+    return render_template("hoteli.html", hoteli=hoteli)
 
-#upisivanje države
-@app.route("/dodaj_drzavu", methods=["GET", "POST"])
-def dodaj_drzavu():
-    if request.method == "POST":
-        naziv = request.form["naziv"]
-        kontinent = request.form["kontinent"]
-        cursor.execute("INSERT INTO drzava (naziv, kontinent) VALUES (%s, %s)", (naziv, kontinent))
+#Dodavanje smestaja
+@app.route("/dodaj_smestaj", methods=["GET", "POST"])
+def dodaj_smestaj():
+    if request.method == "GET":
+        return render_template("dodaj_smestaj.html")
+    
+    naziv = request.form["naziv"]
+    adresa = request.form["adresa"]
+    grad = request.form["grad"]
+    drzava = request.form["drzava"]
+    kontinent = request.form["kontinent"]
+    zvezdice = request.form["zvezdice"]
+    ljubimci = request.form["ljubimci"]
+    vrsta_smestaja = request.form["vrsta_smestaja"]
+    obrok = request.form["obrok"]
+    
+    try:
+        # 1) drzava
+        cursor.execute("INSERT INTO drzava (drzava, kontinent) VALUES (%s, %s)", (drzava, kontinent))
+        drzava_id = cursor.lastrowid
+    
+        # 2) grad
+        cursor.execute("INSERT INTO grad (naziv_grada, drzavaID) VALUES (%s, %s)", (grad, drzava_id))
+        grad_id = cursor.lastrowid
+    
+        # 3) hotel
+        cursor.execute(
+        "INSERT INTO hotel (naziv, adresa, gradID, zvezdice, ljubimci, vrsta_smestaja, obrok) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+        (naziv, adresa, grad_id, zvezdice, ljubimci, vrsta_smestaja, obrok)
+        )
+    
         konekcija.commit()
         return redirect(url_for("index"))
-    return render_template("dodaj_drzavu.html")
+    except Exception:
+        konekcija.rollback()
+        raise
 
-#upisivanje grada
-@app.route("/dodaj_grad", methods=["GET", "POST"])
-def dodaj_grad():
-    if request.method == "POST":
-        naziv = request.form["naziv"]
-        drzava_id = request.form["drzava_id"]
-        cursor.execute("INSERT INTO grad (naziv, drzava_id) VALUES (%s, %s)", (naziv, drzava_id))
-        konekcija.commit()
-        return redirect(url_for("index"))
-    cursor.execute("SELECT * FROM drzava")
-    drzava = cursor.fetchall()
-    return render_template("dodaj_grad.html", drzava=drzava)
-
-#upisivanje hotela
-@app.route("/dodaj_hotel", methods=["GET", "POST"])
-def dodaj_hotel():
-    if request.method == "POST":
-        naziv = request.form["naziv"]
-        grad_id = request.form["grad_id"]
-        adresa = request.form["adresa"]
-        zvezdice = request.form["zvezdice"]
-        ljubimci = request.form.get("ljubimci", "ne")
-        vrsta_smestaja = request.form["vrsta_smestaja"]
-        obrok = request.form["obrok"]
-        cursor.execute("INSERT INTO hotel (naziv, adresa, grad_id, zvezdice, ljubimci, vrsta_smestaja, obrok) VALUES (%s, %s, %s, %s, %s, %s, %s)", (naziv, adresa, grad_id, zvezdice, ljubimci, vrsta_smestaja, obrok))
-        konekcija.commit()
-        return redirect(url_for("index"))
-    cursor.execute("SELECT * FROM grad")
-    grad = cursor.fetchall()
-    return render_template("dodaj_hotel.html", grad=grad)
+@app.route("/filter", methods=["GET"])
+def filter():
+    cursor.execute("""
+                SELECT hotel.*,
+                    grad.naziv_grada AS grad_naziv
+                FROM hotel
+                JOIN grad ON hotel.gradID = grad.gradID
+                WHERE hotel.zvezdice = %s
+                AND hotel.ljubimci = %s
+                AND hotel.vrsta_smestaja = %s
+                AND hotel.obrok = %s
+                """, (
+        request.args.get("zvezdice"),
+        request.args.get("ljubimci"),
+        request.args.get("vrsta_smestaja"),
+        request.args.get("obrok")
+    ))
+    hoteli = cursor.fetchall()
+    return render_template("hoteli.html", hoteli=hoteli)
 
 if __name__ == "__main__":  # program startuje app.py
     app.run(debug = True)  # Promeniti na kraju projekta na False, da se ne bi prikazivali detalji o greškama korisnicima.
