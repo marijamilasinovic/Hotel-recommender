@@ -66,10 +66,10 @@ def filter():
     if request.method == "GET":
         return render_template("filter.html")
 
-    zvezdice       = request.form.get("zvezdice")       or None
-    ljubimci       = request.form.get("ljubimci")       or None
+    zvezdice = int(request.form.get("zvezdice")) if request.form.get("zvezdice") else None
+    ljubimci = int(request.form.get("ljubimci")) if request.form.get("ljubimci") != "" else None
     vrsta_smestaja = request.form.get("vrsta_smestaja") or None
-    obrok          = request.form.get("obrok")          or None
+    obrok = request.form.get("obrok") or None
 
     query = """
         SELECT hotel.*, grad.naziv_grada AS grad_naziv
