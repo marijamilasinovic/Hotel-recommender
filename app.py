@@ -12,13 +12,13 @@ konekcija = mysql.connector.connect(
     password="",
     database="smestaj"
 )
-cursor = konekcija.cursor(dictionary=True)
+cursor = konekcija.cursor(dictionary=True, buffered=True)  # dictionary=True da bi se rezultati vraćali kao rečnici, buffered=True da bi se rezultati mogli ponovo koristiti
 
 #Početna stranica
 @app.route("/")
 def index():
     cursor.execute("""SELECT hotel.hotelID, hotel.naziv, hotel.adresa, hotel.zvezdice, hotel.ljubimci, hotel.vrsta_smestaja, hotel.obrok,
-                        grad.naziv_grada AS grad
+                        grad.naziv_grada AS grad_naziv
                     FROM hotel
                     JOIN grad ON hotel.gradID = grad.gradID""")
     hoteli = cursor.fetchall()
@@ -29,7 +29,7 @@ def index():
 def dodaj_smestaj():
     if request.method == "GET":
         return render_template("dodaj_smestaj.html")
-    
+
     naziv = request.form["naziv"]
     adresa = request.form["adresa"]
     grad = request.form["grad"]
@@ -61,23 +61,42 @@ def dodaj_smestaj():
         konekcija.rollback()
         raise
 
-@app.route("/filter", methods=["GET"])
+@app.route("/filter", methods=["GET", "POST"])
 def filter():
-    cursor.execute("""
-                SELECT hotel.*,
-                    grad.naziv_grada AS grad_naziv
-                FROM hotel
-                JOIN grad ON hotel.gradID = grad.gradID
-                WHERE hotel.zvezdice = %s
-                AND hotel.ljubimci = %s
-                AND hotel.vrsta_smestaja = %s
-                AND hotel.obrok = %s
-                """, (
-        request.args.get("zvezdice"),
-        request.args.get("ljubimci"),
-        request.args.get("vrsta_smestaja"),
-        request.args.get("obrok")
-    ))
+    if request.method == "GET":
+        return render_template("filter.html")
+
+    zvezdice       = request.form.get("zvezdice")       or None
+    ljubimci       = request.form.get("ljubimci")       or None
+    vrsta_smestaja = request.form.get("vrsta_smestaja") or None
+    obrok          = request.form.get("obrok")          or None
+
+    query = """
+        SELECT hotel.*, grad.naziv_grada AS grad_naziv
+        FROM hotel
+        JOIN grad ON hotel.gradID = grad.gradID
+    """
+
+    filters = []
+    params = []
+
+    if zvezdice:
+        filters.append("hotel.zvezdice = %s")
+        params.append(zvezdice)
+    if ljubimci:
+        filters.append("hotel.ljubimci = %s")
+        params.append(ljubimci)
+    if vrsta_smestaja:
+        filters.append("hotel.vrsta_smestaja = %s")
+        params.append(vrsta_smestaja)
+    if obrok:
+        filters.append("hotel.obrok = %s")
+        params.append(obrok)
+
+    if filters:
+        query += " WHERE " + " AND ".join(filters)
+
+    cursor.execute(query, params)
     hoteli = cursor.fetchall()
     return render_template("hoteli.html", hoteli=hoteli)
 
